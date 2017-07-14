@@ -64,8 +64,10 @@ if __name__ == "__main__":
             color_counter = count_colors(sys.argv[1])
         except requests.ConnectionError as e:
             sys.exit("Failed while trying to connect to: {}".format(e.request.url))
+        total_counted_colors = sum(color_counter.values())
         table = PrettyTable()
-        table.field_names = ["Color", "Count"]
+        table.field_names = ["Color", "Count", "%"]
         for color_count in sorted(color_counter.items(), key=lambda x: x[1], reverse=True):
-            table.add_row(color_count)
+            color_pick_percentage = round(color_count[1] * 100 / total_counted_colors, 2)
+            table.add_row(color_count + (color_pick_percentage,))
         print(table)
