@@ -68,7 +68,7 @@ class AmazonReviewsColorCounter():
         return color_counter
 
     def close(self):
-        self.driver.close()
+        self._driver.close()
 
 
 if __name__ == "__main__":
