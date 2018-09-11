@@ -1,3 +1,4 @@
 beautifulsoup4==4.5.3
 PTable==0.9.2
-requests==2.13.0
+selenium==3.14.0
+urllib3==1.23

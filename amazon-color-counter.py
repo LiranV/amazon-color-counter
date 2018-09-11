@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
 import sys
-import requests
 from urllib.parse import urlencode, urlsplit, urlunsplit, parse_qs
 from bs4 import BeautifulSoup
 from collections import defaultdict
@@ -76,12 +75,9 @@ if __name__ == "__main__":
     if len(sys.argv) < 2:
         sys.exit("Please provide the URL of the product as an argument.")
     else:
-        try:
-            arcc = AmazonReviewsColorCounter()
-            color_counter = arcc.count_colors(sys.argv[1])
-            arcc.close()
-        except requests.ConnectionError as e:
-            sys.exit("Failed while trying to connect to: {}".format(e.request.url))
+        arcc = AmazonReviewsColorCounter()
+        color_counter = arcc.count_colors(sys.argv[1])
+        arcc.close()
         total_counted_colors = sum(color_counter.values())
         table = PrettyTable()
         table.field_names = ["Color", "Count", "%"]
