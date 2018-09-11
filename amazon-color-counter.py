@@ -6,54 +6,70 @@ from urllib.parse import urlencode, urlsplit, urlunsplit, parse_qs
 from bs4 import BeautifulSoup
 from collections import defaultdict
 from prettytable import PrettyTable
-
-COLOR_STR = "Color: "
-
-
-def get_reviews_page_url(url):
-    initial_url = urlsplit(url)
-    headers = {'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64; rv:47.0) Gecko/20100101 Firefox/47.0'}
-    r = requests.get(url, headers=headers)
-    soup = BeautifulSoup(r.text, "html.parser")
-    reviews_page_link = soup.find("a", {"id": "dp-summary-see-all-reviews"})
-    if reviews_page_link is None:
-        raise ValueError("Invalid Product Page")
-    reviews_page_path = reviews_page_link["href"]
-    scheme, netloc, url, query, fragment = urlsplit(reviews_page_path)
-    url_query = parse_qs(query)
-    url_query["reviewerType"] = "all_reviews"
-    new_query = urlencode(url_query, doseq=True)
-    return urlunsplit((initial_url.scheme, initial_url.netloc, url, new_query, fragment))
+from selenium import webdriver
+from selenium.webdriver.firefox.options import Options
 
 
-def get_page(url, page_number):
-    url += "&pageNumber={}".format(page_number)
-    headers = {'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64; rv:47.0) Gecko/20100101 Firefox/47.0'}
-    r = requests.get(url, headers=headers)
-    return BeautifulSoup(r.text, "html.parser")
+class AmazonReviewsColorCounter():
+    COLOR_STR = "Color: "
 
+    def __init__(self):
+        self._driver = self._init_webdriver()
 
-def get_last_page(url):
-    data = get_page(url, 1)
-    return data.find("ul", class_="a-pagination").find_all("li")[-2].string
+    def _init_webdriver(self, headless=True):
+        options = Options()
+        options.set_headless(headless=headless)
+        driver = webdriver.Firefox(firefox_options=options)
+        return driver
 
+    def _get_page_source(self, url):
+        self._driver.get(url)
+        return self._driver.page_source
 
-def count_colors(product_page_url):
-    reviews_page_url = get_reviews_page_url(product_page_url)
+    def _get_reviews_page_url(self, url):
+        initial_url = urlsplit(url)
+        page_src = self._get_page_source(url)
+        soup = BeautifulSoup(page_src, "html.parser")
+        reviews_page_link = soup.find("a", {"id": "dp-summary-see-all-reviews"})
+        if reviews_page_link is None:
+            raise ValueError("Invalid Product Page")
+        reviews_page_path = reviews_page_link["href"]
+        scheme, netloc, url, query, fragment = urlsplit(reviews_page_path)
+        url_query = parse_qs(query)
+        url_query["reviewerType"] = "all_reviews"
+        new_query = urlencode(url_query, doseq=True)
+        return urlunsplit((initial_url.scheme, initial_url.netloc, url, new_query, fragment))
 
-    color_counter = defaultdict(int)
-    for i in range(1, int(get_last_page(reviews_page_url))+1):
-        print("Processing page #{}".format(i))
-        page = get_page(reviews_page_url, i)
-        for elem in page.findAll(class_='a-size-mini a-link-normal a-color-secondary'):
-            color_string = None
-            str_list = elem.strings
-            for string in str_list:
-                if string.startswith(COLOR_STR):
-                    color_string = string[len(COLOR_STR):]
-            if color_string is not None:
-                color_counter[color_string] += 1
-    return color_counter
+    def _get_page(self, url, page_number):
+        url += "&pageNumber={}".format(page_number)
+        page_src = self._get_page_source(url)
+        return BeautifulSoup(page_src, "html.parser")
+
+    def _get_last_page(self, url):
+        data = self._get_page(url, 1)
+        return data.find("ul", class_="a-pagination").find_all("li")[-2].string
+
+    def count_colors(self, product_page_url, page_limit=None):
+        reviews_page_url = self._get_reviews_page_url(product_page_url)
+        color_counter = defaultdict(int)
+        max_page_number = int(self._get_last_page(reviews_page_url))
+        page_limit = max_page_number if page_limit is None else min(page_limit, max_page_number)
+        for i in range(1, page_limit+1):
+            print("Processing reviews page #{}".format(i))
+            page = self._get_page(reviews_page_url, i)
+            for elem in page.findAll(class_='a-size-mini a-link-normal a-color-secondary'):
+                color_string = None
+                str_list = elem.strings
+                for string in str_list:
+                    string = string.strip()
+                    if string.startswith(AmazonReviewsColorCounter.COLOR_STR):
+                        color_string = string[len(AmazonReviewsColorCounter.COLOR_STR):]
+                if color_string is not None:
+                    color_counter[color_string] += 1
+        return color_counter
+
+    def close(self):
+        self.driver.close()
 
 
 if __name__ == "__main__":
@@ -61,7 +77,9 @@ if __name__ == "__main__":
         sys.exit("Please provide the URL of the product as an argument.")
     else:
         try:
-            color_counter = count_colors(sys.argv[1])
+            arcc = AmazonReviewsColorCounter()
+            color_counter = arcc.count_colors(sys.argv[1])
+            arcc.close()
         except requests.ConnectionError as e:
             sys.exit("Failed while trying to connect to: {}".format(e.request.url))
         total_counted_colors = sum(color_counter.values())
