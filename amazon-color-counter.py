@@ -7,6 +7,7 @@ from collections import defaultdict
 from prettytable import PrettyTable
 from selenium import webdriver
 from selenium.webdriver.firefox.options import Options
+import tqdm
 
 
 class AmazonReviewsColorCounter():
@@ -44,17 +45,20 @@ class AmazonReviewsColorCounter():
         page_src = self._get_page_source(url)
         return BeautifulSoup(page_src, "html.parser")
 
-    def _get_last_page(self, url):
+    def _get_last_page_number(self, url):
         data = self._get_page(url, 1)
-        return data.find("ul", class_="a-pagination").find_all("li")[-2].string
+        review_count_info_text = data.find(
+            "span", attrs={"data-hook": "cr-filter-info-review-count"}).string
+        review_count = int(review_count_info_text.split(" ")[3].replace(",", ""))
+        last_page, extra_page_needed = divmod(review_count, 10)
+        return last_page + 1 if extra_page_needed else last_page
 
     def count_colors(self, product_page_url, page_limit=None):
         reviews_page_url = self._get_reviews_page_url(product_page_url)
         color_counter = defaultdict(int)
-        max_page_number = int(self._get_last_page(reviews_page_url))
-        page_limit = max_page_number if page_limit is None else min(page_limit, max_page_number)
-        for i in range(1, page_limit+1):
-            print("Processing reviews page #{}".format(i))
+        last_page_number = self._get_last_page_number(reviews_page_url)
+        page_limit = last_page_number if page_limit is None else min(page_limit, last_page_number)
+        for i in tqdm.trange(1, page_limit+1):
             page = self._get_page(reviews_page_url, i)
             for elem in page.findAll(class_='a-size-mini a-link-normal a-color-secondary'):
                 color_string = None
