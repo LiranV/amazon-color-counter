@@ -18,8 +18,8 @@ class AmazonReviewsColorCounter():
 
     def _init_webdriver(self, headless=True):
         options = Options()
-        options.set_headless(headless=headless)
-        driver = webdriver.Firefox(firefox_options=options)
+        options.headless = True
+        driver = webdriver.Firefox(options=options)
         return driver
 
     def _get_page_source(self, url):
