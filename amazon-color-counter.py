@@ -24,29 +24,19 @@ class AmazonReviewsColorCounter():
 
     def _get_page_source(self, url):
         self._driver.get(url)
-        return self._driver.page_source
+        return BeautifulSoup(self._driver.page_source, "html.parser")
 
     def _get_reviews_page_url(self, url):
-        initial_url = urlsplit(url)
-        page_src = self._get_page_source(url)
-        soup = BeautifulSoup(page_src, "html.parser")
-        reviews_page_link = soup.find("a", {"id": "dp-summary-see-all-reviews"})
-        if reviews_page_link is None:
-            raise ValueError("Invalid Product Page")
-        reviews_page_path = reviews_page_link["href"]
-        scheme, netloc, url, query, fragment = urlsplit(reviews_page_path)
-        url_query = parse_qs(query)
-        url_query["reviewerType"] = "all_reviews"
-        new_query = urlencode(url_query, doseq=True)
-        return urlunsplit((initial_url.scheme, initial_url.netloc, url, new_query, fragment))
+        url_path = urlsplit(url).path
+        product_id = url_path.split('/')[3]
+        return f"https://www.amazon.com/product-reviews/{product_id}"
 
-    def _get_page(self, url, page_number):
-        url += "&pageNumber={}".format(page_number)
-        page_src = self._get_page_source(url)
-        return BeautifulSoup(page_src, "html.parser")
+    def _get_reviews_page(self, reviews_page_url, page_number):
+        reviews_page_url += f"/ref=cm_cr_getr_d_paging_btm_next_{page_number}?pageNumber={page_number}"
+        return self._get_page_source(reviews_page_url)
 
-    def _get_last_page_number(self, url):
-        data = self._get_page(url, 1)
+    def _get_last_reviews_page_number(self, url):
+        data = self._get_page_source(url)
         review_count_info_text = data.find(
             "span", attrs={"data-hook": "cr-filter-info-review-count"}).string
         review_count = int(review_count_info_text.split(" ")[3].replace(",", ""))
@@ -56,10 +46,10 @@ class AmazonReviewsColorCounter():
     def count_colors(self, product_page_url, page_limit=None):
         reviews_page_url = self._get_reviews_page_url(product_page_url)
         color_counter = defaultdict(int)
-        last_page_number = self._get_last_page_number(reviews_page_url)
+        last_page_number = self._get_last_reviews_page_number(reviews_page_url)
         page_limit = last_page_number if page_limit is None else min(page_limit, last_page_number)
-        for i in tqdm.trange(1, page_limit+1):
-            page = self._get_page(reviews_page_url, i)
+        for i in tqdm.trange(1, page_limit+1, unit='page'):
+            page = self._get_reviews_page(reviews_page_url, i)
             for elem in page.findAll(class_='a-size-mini a-link-normal a-color-secondary'):
                 color_string = None
                 str_list = elem.strings
