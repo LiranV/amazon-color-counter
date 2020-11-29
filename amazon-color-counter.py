@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import re
 import sys
 from urllib.parse import urlencode, urlsplit, urlunsplit, parse_qs
 from bs4 import BeautifulSoup
@@ -37,9 +38,8 @@ class AmazonReviewsColorCounter():
 
     def _get_last_reviews_page_number(self, url):
         data = self._get_page_source(url)
-        review_count_info_text = data.find(
-            "span", attrs={"data-hook": "cr-filter-info-review-count"}).string
-        review_count = int(review_count_info_text.split(" ")[3].replace(",", ""))
+        review_count_info_text = data.find("div", attrs={"data-hook": "cr-filter-info-review-rating-count"})
+        review_count = int(re.search(r"(\d+) global reviews", review_count_info_text.span.contents[0]).group(1))
         last_page, extra_page_needed = divmod(review_count, 10)
         return last_page + 1 if extra_page_needed else last_page
 
