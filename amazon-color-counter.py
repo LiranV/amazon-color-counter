@@ -39,7 +39,7 @@ class AmazonReviewsColorCounter():
     def _get_last_reviews_page_number(self, url):
         data = self._get_page_source(url)
         review_count_info_text = data.find("div", attrs={"data-hook": "cr-filter-info-review-rating-count"})
-        review_count = int(re.search(r"(\d+) global reviews", review_count_info_text.span.contents[0]).group(1))
+        review_count = int(re.search(r"(\d+\,?\d+) with reviews", review_count_info_text.text).group(1).replace(',', ''))
         last_page, extra_page_needed = divmod(review_count, 10)
         return last_page + 1 if extra_page_needed else last_page
 
